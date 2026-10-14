@@ -1,0 +1,24 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+# Component-development metadata only. Public Python publication is the
+# aggregate "zog" distribution assembled by release-build.
+[project]
+name = "host-identify"
+dynamic = ["version"]
+requires-python = ">=3.12"
+dependencies = ["http-message-signatures>=2.0.1,<3", "typing_extensions>=4.12", "cryptography>=44", "PyJWT>=2.10,<3", "requests>=2.32,<3"]
+license = "BSD-3-Clause OR GPL-3.0-only"
+license-files = ["LICENSE", "LICENSES/*.txt", "THIRD-PARTY-NOTICES.md"]
+
+[tool.setuptools.dynamic]
+version = {attr = "zog.host_identify.__version__"}
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["zog.host_identify*"]
+namespaces = true

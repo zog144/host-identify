@@ -1,0 +1,22 @@
+{
+  "schema": 2,
+  "program": "host-identify",
+  "python_package": "zog.host_identify",
+  "version": "0.3.4",
+  "scripts": {},
+  "component_dependencies": [],
+  "external_dependencies": [
+    "http-message-signatures>=2.0.1,<3",
+    "typing_extensions>=4.12",
+    "cryptography>=44",
+    "PyJWT>=2.10,<3",
+    "requests>=2.32,<3"
+  ],
+  "package_data": [],
+  "license_notice_paths": [
+    "LICENSE",
+    "LICENSES/BSD-3-Clause.txt",
+    "LICENSES/GPL-3.0-only.txt",
+    "THIRD-PARTY-NOTICES.md"
+  ]
+}
