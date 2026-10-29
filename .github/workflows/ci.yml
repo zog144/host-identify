@@ -37,7 +37,7 @@ jobs:
       - name: Verify namespace ownership
         run: |
           test ! -e src/zog/__init__.py
-          python -c 'import zog.host_identify as h; assert h.__version__ == "0.3.4"'
+          python -c 'import zog.host_identify as h; assert h.__version__ == "0.3.5"'
 
   package-artifacts:
     name: Namespace and license artifact audit
@@ -70,7 +70,8 @@ jobs:
               files = {n[len(prefix)+1:] for n in names if n.startswith(prefix + '/')}
               for path in ('LICENSE', 'LICENSES/BSD-3-Clause.txt',
                            'LICENSES/GPL-3.0-only.txt', 'THIRD-PARTY-NOTICES.md',
-                           'docs/host-identify/README.md', 'tests/test_namespace.py',
+                           'docs/host-identify/README.md', 'docs/host-identify/CREDENTIAL-DELIVERY.md',
+                           'tests/test_namespace.py', 'tests/test_credential_delivery.py',
                            'src/zog/host_identify/__init__.py'):
                   assert path in files, path
               assert 'COPYRIGHT' not in files

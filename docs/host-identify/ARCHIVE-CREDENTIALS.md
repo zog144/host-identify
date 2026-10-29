@@ -39,7 +39,7 @@ reused as an archive credential purpose.
 When an actual archive-owned durable secret is introduced, the change must
 define an explicit HTTPS delivery purpose and bind at least the exact approved
 Host/installation identity, archive provider or collection role, credential
-revision, consumer, destination and permitted operation. The common framework's
+revision, consumer, destination and permitted operation. The common [HTTPS credential-delivery v1](CREDENTIAL-DELIVERY.md) framework's
 signature verification, anti-replay/revocation handling and protected local
 installation interface remain transport/installation owners; host-identify
 should only define the archive-specific authorization profile.

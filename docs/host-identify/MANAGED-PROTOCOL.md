@@ -27,3 +27,15 @@ it is not an authorization decision or automatic correlation check.
 Dedicated station control keys must not be reused for archive tokens or rootfs
 release signing. These profiles are integration scaffolding: production managed
 transport remains disabled until full admission and joint acceptance are complete.
+
+
+## Credential delivery is a separate protocol
+
+The v1 managed session remains inspect-only. It does not authorize durable
+secret delivery, even when the Host is enrolled and the session is current.
+
+Reusable cross-host secret delivery uses the separate
+[Unified HTTPS credential delivery v1](CREDENTIAL-DELIVERY.md) contract. Its
+HostIdentity-signed requests, independently signed Credential Authority
+authorization, protected receiver and secret-free installation receipt are
+separate from managed-session JWT command admission.

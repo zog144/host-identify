@@ -3,7 +3,7 @@
 **Documentation:** [Technical manual](docs/host-identify/README.md) · [Source traceability](docs/host-identify/TRACEABILITY.md). The manual organizes current concepts; linked detailed sources preserve exact contracts and historical evidence.
 
 Shared Python security library for station-access, host-discover and archive-mirror.
-Version **0.3.4** supplies signed host messages, short-lived scoped archive tokens,
+Version **0.3.5** supplies signed host messages, short-lived scoped archive tokens,
 protected local credential storage and authorized mirror discovery. It is a
 library, not an enrollment server or background daemon.
 
@@ -25,6 +25,7 @@ before its companion programs; it is not assumed to be on a public package index
 | --- | --- |
 | `zog.host_identify.signatures` | Ed25519 public-key/fingerprint helpers and HTTP message signing/verification |
 | `zog.host_identify.archive` | Issue and verify issuer/audience/operation/collection-scoped archive tokens |
+| `zog.host_identify.credential_delivery` | Pure v1 schemas, signatures and durable anti-replay state transitions for separately authorized HTTPS secret delivery |
 | `zog.host_identify.storage` | Protected key/grant files, atomic updates and expiry handling |
 | `zog.host_identify.mirror_access` | `read_access(...)` validates a grant and returns ready HTTPS candidates |
 
@@ -75,7 +76,7 @@ See [HOST-INSTALL.md](docs/host-identify/HOST-INSTALL.md) for explicit identity 
 offline contract verification, compatibility and remaining live-admission work.
 This pass does not enable a new Zog-host daemon or remote control channel.
 
-Current managed integration: [protocol profiles](docs/host-identify/MANAGED-PROTOCOL.md). Production managed transport remains disabled.
+Current managed integration: [protocol profiles](docs/host-identify/MANAGED-PROTOCOL.md). The inspect-only managed session does not authorize secrets. Reusable secret transport is defined separately by [HTTPS credential delivery v1](docs/host-identify/CREDENTIAL-DELIVERY.md). Production credential delivery remains disabled.
 
 ## Expired-session evidence (0.3.4)
 

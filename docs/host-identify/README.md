@@ -12,3 +12,5 @@ This is the canonical navigation entry point for host-identify. It organizes cur
 ## Reference integrity
 
 See [TRACEABILITY.md](TRACEABILITY.md) for document coverage, and the repository root README for setup. Original detailed sources are retained pending requirement-by-requirement editorial reconciliation.
+
+- [Unified HTTPS credential delivery v1](CREDENTIAL-DELIVERY.md)
