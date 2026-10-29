@@ -181,7 +181,7 @@ def test_revoked_and_expired_authorizations_cannot_deliver(fixture):
         cd.validate_request(request(verified, now), verified, now=now)
 
     expired = dict(
-        authorization, approved_at=now - 1000, expires_at=now - 1
+        authorization, approved_at=now - 1000, expires_at=now - 10
     )
     with pytest.raises(cd.CredentialProtocolError, match="lifetime"):
         cd.verify_authorization(

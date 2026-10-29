@@ -7,7 +7,7 @@ from zog import host_identify
 
 def test_canonical_namespace_and_version():
     assert host_identify.__name__ == "zog.host_identify"
-    assert host_identify.__version__ == "0.3.4"
+    assert host_identify.__version__ == "0.3.5"
 
 
 def test_legacy_top_level_package_does_not_return():
