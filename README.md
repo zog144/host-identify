@@ -88,3 +88,7 @@ under `BSD-3-Clause OR GPL-3.0-only`; see [LICENSE](LICENSE),
 [LICENSES](LICENSES/) and [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md).
 The clean public Git history excludes private handoffs and operational evidence.
 Local tests do not establish real host enrollment or recovery acceptance.
+
+## Archive credential boundary
+
+Archive authorization keeps short-lived scoped JWT grants separate from durable secret provisioning. Current archive-mirror has no approved durable cross-host credential purpose; issuer signing keys never move to mirrors and current upstream acquisition is credential-free. See [archive credential provisioning boundary](docs/host-identify/ARCHIVE-CREDENTIALS.md).
