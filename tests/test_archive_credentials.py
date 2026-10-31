@@ -210,3 +210,101 @@ def test_host_identity_change_invalidates_candidate_binding(tmp_path,grant):
     with pytest.raises(PermissionError,match="identity mismatch"):
         mirror_access.read_access(
             shared,{"one":key.public_key()},ISSUER,AUDIENCE,"download","sources",MIRROR)
+
+def test_exact_destination_identity_changes_common_authorization_binding():
+    _,base=provider_scope()
+    authority=Ed25519PrivateKey.generate()
+    envelope,_=authorization(base,authority)
+    original=archive_credentials.provider_binding(base)
+    changes=(
+        {"host_id":str(uuid.uuid4())},
+        {"host_fingerprint":"a"*64},
+        {"installation_id":str(uuid.uuid4())},
+        {"state_volume_id":str(uuid.uuid4())},
+        {"registry_id":"other-registry"},
+    )
+    for change in changes:
+        changed={**base,**change}
+        # The provider credential identity is stable but destination
+        # authorization is not transferable across Host/STATE/grants.
+        assert archive_credentials.provider_scope(changed)["credential_id"] == original["credential_id"]
+        assert archive_credentials.provider_binding(changed) != original
+        with pytest.raises(credential_delivery.CredentialProtocolError):
+            archive_credentials.verify_provider_authorization(
+                envelope,authority.public_key(),
+                expected_issuer="https://authority.example.test",
+                scope=changed,now=1_800_000_000,
+            )
+
+
+def test_purpose_confusion_is_rejected_before_common_request_or_installation():
+    _,scope=provider_scope()
+    authority=Ed25519PrivateKey.generate()
+    envelope,auth=authorization(scope,authority)
+    confused={**auth,"purpose":"issuer-cloudflare-dns01"}
+    forged=credential_delivery.sign_authorization(confused,authority)
+    with pytest.raises(credential_delivery.CredentialProtocolError):
+        archive_credentials.verify_provider_authorization(
+            forged,authority.public_key(),
+            expected_issuer="https://authority.example.test",
+            scope=scope,now=1_800_000_000,
+        )
+    with pytest.raises(archive_credentials.ArchiveCredentialPolicyError):
+        archive_credentials.request(
+            scope,confused,request_id=str(uuid.uuid4()),action="deliver",
+            previous_delivery_id=None,created_at=1_800_000_000,
+            expires_at=1_800_000_060,
+        )
+
+
+def test_credential_rotation_preserves_provider_scope_but_requires_current_revision():
+    _,scope=provider_scope()
+    authority=Ed25519PrivateKey.generate()
+    _,old_auth=authorization(scope,authority)
+    rotated={**scope,"credential_revision":4}
+    _,new_auth=authorization(rotated,authority)
+    old_binding=archive_credentials.provider_binding(scope)
+    assert archive_credentials.provider_binding(rotated)==old_binding
+    assert archive_credentials.provider_scope(rotated)["scope_id"]==archive_credentials.provider_scope(scope)["scope_id"]
+    with pytest.raises(archive_credentials.ArchiveCredentialPolicyError):
+        archive_credentials.request(
+            rotated,old_auth,request_id=str(uuid.uuid4()),action="renew",
+            previous_delivery_id=str(uuid.uuid4()),
+            created_at=1_800_000_000,expires_at=1_800_000_060,
+        )
+    request=archive_credentials.request(
+        rotated,new_auth,request_id=str(uuid.uuid4()),action="renew",
+        previous_delivery_id=str(uuid.uuid4()),
+        created_at=1_800_000_000,expires_at=1_800_000_060,
+    )
+    assert request["credential_revision"]==4
+    assert request["purpose"]==archive_credentials.PROVIDER_PURPOSE
+    with pytest.raises(credential_delivery.CredentialProtocolError):
+        archive_credentials.request(
+            rotated,new_auth,request_id=str(uuid.uuid4()),action="renew",
+            previous_delivery_id=None,
+            created_at=1_800_000_000,expires_at=1_800_000_060,
+        )
+
+
+def test_stale_authorization_revision_and_revocation_block_requests():
+    _,scope=provider_scope()
+    authority=Ed25519PrivateKey.generate()
+    _,auth=authorization(scope,authority)
+    request=archive_credentials.request(
+        scope,auth,request_id=str(uuid.uuid4()),action="deliver",
+        previous_delivery_id=None,created_at=1_800_000_000,
+        expires_at=1_800_000_060,
+    )
+    superseded={**auth,"revision":auth["revision"]+1}
+    with pytest.raises(credential_delivery.CredentialProtocolError):
+        credential_delivery.validate_request(
+            request,superseded,now=1_800_000_000,
+        )
+    with pytest.raises(credential_delivery.CredentialProtocolError):
+        archive_credentials.request(
+            scope,{**auth,"status":"revoked"},
+            request_id=str(uuid.uuid4()),action="deliver",
+            previous_delivery_id=None,created_at=1_800_000_000,
+            expires_at=1_800_000_060,
+        )
