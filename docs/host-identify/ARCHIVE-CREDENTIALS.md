@@ -1,54 +1,66 @@
-# Archive credential provisioning boundary
+# Archive credentials and unified HTTPS delivery
 
-Archive authorization has two deliberately separate mechanisms.
+Archive credentials have two separate security planes.
 
-1. **Short-lived archive access grants** remain the existing
-   `zog-archive-jwt-v1` bearer tokens issued by the archive authority and
-   delivered through the authenticated Host response path. Every consumer use
-   still checks issuer, audience, operation, collection and expiry; mirror
-   discovery additionally binds the stored Host identity to the current
-   candidate set. These grants are not converted into reusable passwords and
-   are not installed through the generic credential-delivery framework.
-2. **Durable cross-host secrets**, if archive-mirror ever needs any, must use
-   the common authenticated HTTPS credential-delivery framework with an
-   explicitly reviewed archive purpose, consumer and protected destination.
+## Short-lived consumer access grants
 
-Current archive-mirror has **no enabled durable-secret delivery purpose**.
+Archive consumers continue to use `zog-archive-jwt-v1` bearer grants obtained
+through the existing authenticated Host-response path. These grants remain
+short-lived and are checked on every use for issuer, audience, archive
+operation, collection and expiry. They are **not** common HTTPS-delivered
+provider credentials and must never be converted into shared passwords.
 
-The machine-readable policy is
-`zog.host_identify.archive_credentials.inventory()`. Its current classes are:
+The archive token authority signing private key remains authority-private.
+Mirrors receive public Ed25519 verification keys only.
 
-- `consumer-access-token`: secret but short-lived; existing authenticated Host
-  response only.
-- `token-issuer-signing-key`: durable authority secret; **never distribute to
-  a mirror**. Mirrors receive public verification keys only.
-- `verification-keyring`: public rotatable configuration, not a credential.
-- `upstream-collection-credential`: unsupported. Current Git and exact-source
-  acquisition require credential-free HTTPS URLs.
-- `provider-service-credential`: unsupported. Archive serving has no shared
-  provider password.
-- `tls-private-key`: owned by the certificate/HTTPS termination path, not by
-  archive-mirror.
+## Durable upstream-provider credential profile
 
-`enabled_https_purposes()` therefore returns an empty tuple, and
-`https_delivery_profile(kind)` rejects every current class. This is
-intentional fail-closed integration with the unified framework: another
-component's purpose (for example `issuer-cloudflare-dns01`) must never be
-reused as an archive credential purpose.
+A durable secret needed by archive-mirror to authenticate to an explicitly
+approved upstream archive provider uses the canonical
+`zog.host_identify.credential_delivery` protocol with:
 
-When an actual archive-owned durable secret is introduced, the change must
-define an explicit HTTPS delivery purpose and bind at least the exact approved
-Host/installation identity, archive provider or collection role, credential
-revision, consumer, destination and permitted operation. The common [HTTPS credential-delivery v1](CREDENTIAL-DELIVERY.md) framework's
-signature verification, anti-replay/revocation handling and protected local
-installation interface remain transport/installation owners; host-identify
-should only define the archive-specific authorization profile.
+- consumer: `archive-mirror`
+- purpose: `archive-mirror-provider`
+- scope schema: `zog-archive-provider-credential-scope-v1`
+- provider role: `upstream-source-provider`
+- operation: exactly `fetch`
 
-Role withdrawal remains separate from storage lifetime. A removed/expired mirror
-role makes mirror selection fail but does not delete retained archive contents.
-Likewise, changing the approved Host identity invalidates the current local
-candidate/token binding rather than migrating a credential implicitly.
+The nonsecret provider scope binds the exact Host ID and HostIdentity
+fingerprint, installation, STATE volume, registry, provider ID and HTTPS origin,
+provider-role revision, sorted archive collections, operation, underlying
+provider credential ID and credential revision.
 
-Source tests: `tests/test_archive_credentials.py` covers role withdrawal,
-expired grants, incorrect collections and Host identity changes, plus the
-zero-enabled-purpose policy.
+The common protocol does not add archive-specific fields to its wire schema.
+Instead, the adapter derives the common `credential_id` from SHA-256 of the
+exact provider/origin/role/collection/operation/provider-credential scope.
+Changing any of those values therefore changes the common authorization binding
+and requires a separately approved authorization. Credential rotation retains
+the same scope-derived ID and advances the canonical `credential_revision`.
+
+`verify_provider_authorization`, `request` and `validate_delivery` reuse the
+canonical signed authorization/request/delivery validation and durable ledger
+semantics. The adapter does not open sockets, store secret bytes, mint authority,
+or replace the protected receiver.
+
+## Role withdrawal and retained archives
+
+Provider-role withdrawal must disable use of an installed upstream-provider
+credential, but it must not delete archive objects, pins, reviewed-source
+membership or catalogue history. Archive-mirror's local protected adapter owns
+that runtime gate. The common credential authorization/ledger remains separate
+from the archive provider-role lease.
+
+## Explicit exclusions
+
+- No archive consumer JWT uses `archive-mirror-provider`.
+- No mirror receives the archive token issuer private signing key.
+- No credential is embedded in an upstream URL or ordinary archive
+  configuration.
+- No browser/session credential, beacon secret, journal field or command-line
+  argument is a provider-secret carrier.
+- TLS private keys remain owned by certificate/HTTPS termination.
+
+Source tests in `tests/test_archive_credentials.py` cover exact scope binding,
+collection/origin/role revision changes, wrong operation/role, canonical
+authorization mismatch, and preservation of the existing short-lived archive
+grant semantics.
