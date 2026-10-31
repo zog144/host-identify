@@ -20,9 +20,9 @@ approved upstream archive provider uses the canonical
 `zog.host_identify.credential_delivery` protocol with:
 
 - consumer: `archive-mirror`
-- purpose: `archive-mirror-provider`
+- purpose: `archive-mirror-upstream-fetch`
 - scope schema: `zog-archive-provider-credential-scope-v1`
-- provider role: `upstream-source-provider`
+- provider role: `archive-mirror-provider`
 - operation: exactly `fetch`
 
 The nonsecret provider scope binds the exact Host ID and HostIdentity
@@ -44,7 +44,7 @@ or replace the protected receiver.
 
 ## Role withdrawal and retained archives
 
-Provider-role withdrawal must disable use of an installed upstream-provider
+Archive-mirror provider-role withdrawal must disable use of an installed upstream-provider
 credential, but it must not delete archive objects, pins, reviewed-source
 membership or catalogue history. Archive-mirror's local protected adapter owns
 that runtime gate. The common credential authorization/ledger remains separate
@@ -52,7 +52,7 @@ from the archive provider-role lease.
 
 ## Explicit exclusions
 
-- No archive consumer JWT uses `archive-mirror-provider`.
+- No archive consumer JWT uses `archive-mirror-upstream-fetch`.
 - No mirror receives the archive token issuer private signing key.
 - No credential is embedded in an upstream URL or ordinary archive
   configuration.

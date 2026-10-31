@@ -67,7 +67,7 @@ def test_archive_inventory_enables_only_provider_https_purpose():
         profile=archive_credentials.https_delivery_profile(kind)
         assert profile["purpose"]==archive_credentials.PROVIDER_PURPOSE
         assert profile["consumer"]=="archive-mirror"
-        assert profile["provider_role"]=="upstream-source-provider"
+        assert profile["provider_role"]=="archive-mirror-provider"
         assert profile["operations"]==["fetch"]
     for kind in ("consumer-access-token","token-issuer-signing-key",
                  "verification-keyring","tls-private-key"):
@@ -97,7 +97,7 @@ def test_provider_scope_is_exact_and_binds_collection_role_revision_and_origin()
         archive_credentials.provider_scope({**base,"operations":["download"]})
     with pytest.raises(archive_credentials.ArchiveCredentialPolicyError):
         archive_credentials.provider_scope(
-            {**base,"provider_role":"mirror-consumer"}
+            {**base,"provider_role":"consumer-only"}
         )
 
 

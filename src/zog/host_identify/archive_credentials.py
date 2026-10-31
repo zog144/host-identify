@@ -15,8 +15,8 @@ from . import credential_delivery
 SCHEMA = "zog-archive-credential-inventory-v1"
 PROVIDER_SCOPE_SCHEMA = "zog-archive-provider-credential-scope-v1"
 PROVIDER_CONSUMER = "archive-mirror"
-PROVIDER_PURPOSE = "archive-mirror-provider"
-PROVIDER_ROLE = "upstream-source-provider"
+PROVIDER_PURPOSE = "archive-mirror-upstream-fetch"
+PROVIDER_ROLE = "archive-mirror-provider"
 PROVIDER_OPERATION = "fetch"
 
 _COLLECTION = re.compile(r"[a-z0-9][a-z0-9_-]{0,63}\Z")
@@ -255,6 +255,9 @@ def validate_delivery(scope, authorization, request_value, delivery, *, now=None
         _deny("provider-authorization-binding-mismatch")
     if authorization["credential_revision"] != selected["credential_revision"]:
         _deny("provider-credential-revision-mismatch")
+    credential_delivery.validate_request(
+        request_value, authorization, now=now
+    )
     return credential_delivery.validate_delivery(
         delivery, request_value, authorization, now=now
     )
