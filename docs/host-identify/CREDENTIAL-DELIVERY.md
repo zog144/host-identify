@@ -174,9 +174,21 @@ host-discover application state.
 
 ### archive-mirror
 
-Current archive credentials remain as documented in
-[ARCHIVE-CREDENTIALS.md](ARCHIVE-CREDENTIALS.md). No durable archive HTTPS
-purpose is enabled by this protocol.
+The archive-specific provider profile is implemented in
+`zog.host_identify.archive_credentials` and documented in
+[ARCHIVE-CREDENTIALS.md](ARCHIVE-CREDENTIALS.md). The exact protected HTTPS
+consumer is `archive-mirror`, with purpose `archive-mirror-upstream-fetch`,
+provider role `archive-mirror-provider` and operation `fetch`. Its common
+credential binding incorporates the approved Host/HostIdentity, installation,
+STATE, registry and a scope-derived provider/collection/role credential ID.
+Credential revision and exact renewal predecessor remain canonical protocol
+fields. The private archive adapter handles installed-secret use and
+signed-revocation tombstones; the protected receiver still owns authority pins,
+HTTP nonce replay protection, durable canonical ledger and receipts.
+
+Short-lived archive consumer JWTs do not use this provider-purpose transport,
+and the archive token issuer's signing private key is never distributed to
+mirrors. Source profile completion is not evidence of a live native receiver.
 
 ## Negative-test contract
 
