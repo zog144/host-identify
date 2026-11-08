@@ -13,7 +13,7 @@ import os
 import stat
 import uuid
 
-from .initialization import IdentityStateError, decode_key
+from .initialization import IdentityStateError, decode_key, directory_fd as safe_directory_fd
 from .signatures import fingerprint
 
 SCHEMA = "zog-retained-legacy-state-identity-completion-v1"
@@ -72,6 +72,12 @@ def load_retained_legacy_fd(directory_fd, completion_fd, *,
         raise IdentityStateError("Expected previously enrolled fingerprint required")
     if not isinstance(expected_registry_origin, str) or not expected_registry_origin.startswith("https://"):
         raise IdentityStateError("Expected retained control registry required")
+    # Refuse an unlinked/moved original inode or a replaced/symlinked path.
+    with safe_directory_fd(identity_directory) as selected_fd:
+        selected = os.fstat(selected_fd)
+        held = os.fstat(directory_fd)
+        if _inode(selected) != _inode(held):
+            raise IdentityStateError("Migrated identity directory substituted")
     directory = os.fstat(directory_fd)
     if (not stat.S_ISDIR(directory.st_mode) or directory.st_uid != os.geteuid()
             or directory.st_gid != os.getegid() or stat.S_IMODE(directory.st_mode) != 0o700):
@@ -116,6 +122,9 @@ def load_retained_legacy_fd(directory_fd, completion_fd, *,
         # Recheck under the same never-replaced key.lock inode.
         if set(os.listdir(directory_fd)) not in (FILES, FILES | OPTIONAL):
             raise IdentityStateError("Conflicting identity transaction")
+        if "registry-ca.pem" in os.listdir(directory_fd):
+            ca, _ = _owned_file(directory_fd, "registry-ca.pem", os.geteuid())
+            os.close(ca)
         for name, field in (("identity.pem", "key_inode"),
                             ("binding.json", "binding_inode")):
             handle, info = _owned_file(directory_fd, name, os.geteuid())
