@@ -83,6 +83,8 @@ def test_original_key_binding_and_repeated_restart(installed):
     "key-symlink", "key-hardlink", "lock-hardlink", "binding-symlink",
     "key-mode", "binding-mode", "foreign-receipt", "directory-replaced",
     "receipt-mode", "receipt-hardlink", "wrong-key", "unexpected-ca",
+    "foreign-key-owner", "foreign-binding-owner", "foreign-directory-owner",
+    "wrong-directory-mode", "wrong-key-group", "missing-key",
 ])
 def test_fail_closed(installed, attack, tmp_path):
     root, key, host, finger, path, receipt, evidence = installed
@@ -118,6 +120,12 @@ def test_fail_closed(installed, attack, tmp_path):
             serialization.NoEncryption()))
     elif attack == "unexpected-ca":
         (root/"registry-ca.pem").symlink_to(tmp_path/"missing")
+    elif attack == "foreign-key-owner": os.chown(root/"identity.pem", 10001, -1)
+    elif attack == "foreign-binding-owner": os.chown(root/"binding.json", 10001, -1)
+    elif attack == "foreign-directory-owner": os.chown(root, 10001, -1)
+    elif attack == "wrong-directory-mode": root.chmod(0o750)
+    elif attack == "wrong-key-group": os.chown(root/"identity.pem", -1, 10001)
+    elif attack == "missing-key": (root/"identity.pem").unlink()
     path.write_text(json.dumps(receipt))
     with pytest.raises((ValueError, PermissionError, OSError)):
         load(installed)
