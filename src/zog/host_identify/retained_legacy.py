@@ -8,6 +8,7 @@ verified identity directory descriptor. No path is opened to *find* the key.
 from __future__ import annotations
 
 import fcntl
+import hashlib
 import json
 import os
 import stat
@@ -97,7 +98,7 @@ def load_retained_legacy_fd(directory_fd, completion_fd, *,
     expected_fields = {"schema", "status", "migration_id", "identity_directory",
                        "host_uuid", "fingerprint", "registry_origin", "uid", "gid",
                        "identity_inode", "key_inode", "binding_inode", "lock_inode",
-                       "plan_sha256", "journal_sha256"}
+                       "plan_sha256", "journal_sha256", "ca_inode", "ca_sha256"}
     if (type(receipt) is not dict or set(receipt) != expected_fields
             or receipt["schema"] != SCHEMA or receipt["status"] != "complete"
             or not _uuid(receipt["migration_id"])
@@ -123,8 +124,16 @@ def load_retained_legacy_fd(directory_fd, completion_fd, *,
         if set(os.listdir(directory_fd)) not in (FILES, FILES | OPTIONAL):
             raise IdentityStateError("Conflicting identity transaction")
         if "registry-ca.pem" in os.listdir(directory_fd):
-            ca, _ = _owned_file(directory_fd, "registry-ca.pem", os.geteuid())
-            os.close(ca)
+            ca, ca_info = _owned_file(directory_fd, "registry-ca.pem", os.geteuid())
+            try:
+                if (_inode(ca_info) != receipt["ca_inode"]
+                        or hashlib.sha256(_read_exact(ca, 32768)).hexdigest()
+                        != receipt["ca_sha256"]):
+                    raise IdentityStateError("Migrated registry CA changed")
+            finally:
+                os.close(ca)
+        elif receipt["ca_inode"] is not None or receipt["ca_sha256"] is not None:
+            raise IdentityStateError("Retained CA missing from migrated identity")
         for name, field in (("identity.pem", "key_inode"),
                             ("binding.json", "binding_inode")):
             handle, info = _owned_file(directory_fd, name, os.geteuid())
@@ -146,6 +155,19 @@ def load_retained_legacy_fd(directory_fd, completion_fd, *,
                 or binding["fingerprint"] != expected_fingerprint
                 or fingerprint(key.public_key()) != expected_fingerprint):
             raise IdentityStateError("Retained key and enrolled binding disagree")
+        # Recheck paths and retained lock inode immediately before admitting
+        # identity, including a concurrent replacement after the first read.
+        for name,field in (("key.lock","lock_inode"),
+                           ("identity.pem","key_inode"),
+                           ("binding.json","binding_inode")):
+            info = os.stat(name, dir_fd=directory_fd, follow_symlinks=False)
+            if (not stat.S_ISREG(info.st_mode)
+                    or info.st_nlink != 1
+                    or _inode(info) != receipt[field]):
+                raise IdentityStateError("Retained entry replaced during inspection")
+        with safe_directory_fd(identity_directory) as selected_fd:
+            if _inode(os.fstat(selected_fd)) != receipt["identity_inode"]:
+                raise IdentityStateError("Migrated identity path replaced")
         return key, dict(binding)
     finally:
         os.close(lock)
