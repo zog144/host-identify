@@ -44,6 +44,7 @@ def installed(tmp_path, monkeypatch):
                 "identity_inode":ino(root), "key_inode":ino(key_file),
                 "binding_inode":ino(root/"binding.json"),
                 "lock_inode":ino(root/"key.lock"),
+                "ca_inode":None, "ca_sha256":None,
                 "plan_sha256":"a"*64, "journal_sha256":"b"*64}
     receipt = evidence()
     receipt_path.write_text(json.dumps(receipt))
@@ -85,6 +86,7 @@ def test_original_key_binding_and_repeated_restart(installed):
     "receipt-mode", "receipt-hardlink", "wrong-key", "unexpected-ca",
     "foreign-key-owner", "foreign-binding-owner", "foreign-directory-owner",
     "wrong-directory-mode", "wrong-key-group", "missing-key",
+    "missing-ca-after-receipt", "wrong-ca-bytes",
 ])
 def test_fail_closed(installed, attack, tmp_path):
     root, key, host, finger, path, receipt, evidence = installed
@@ -126,6 +128,18 @@ def test_fail_closed(installed, attack, tmp_path):
     elif attack == "wrong-directory-mode": root.chmod(0o750)
     elif attack == "wrong-key-group": os.chown(root/"identity.pem", -1, 10001)
     elif attack == "missing-key": (root/"identity.pem").unlink()
+    elif attack in ("missing-ca-after-receipt", "wrong-ca-bytes"):
+        import hashlib
+        ca = root/"registry-ca.pem"
+        ca.write_bytes(b"retained-original-ca")
+        ca.chmod(0o600)
+        s = ca.stat()
+        receipt["ca_inode"] = [s.st_dev, s.st_ino]
+        receipt["ca_sha256"] = hashlib.sha256(ca.read_bytes()).hexdigest()
+        if attack == "missing-ca-after-receipt":
+            ca.unlink()
+        else:
+            ca.write_bytes(b"substituted-ca")
     path.write_text(json.dumps(receipt))
     with pytest.raises((ValueError, PermissionError, OSError)):
         load(installed)
