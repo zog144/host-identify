@@ -53,13 +53,18 @@ def installed(tmp_path, monkeypatch):
 
 def load(row, receipt=None):
     root, key, host, finger, path, original, _ = row
-    with os.fdopen(os.open(root, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW), "rb", closefd=True) as folder, \
-         os.fdopen(os.open(path, os.O_RDONLY | os.O_NOFOLLOW), "rb", closefd=True) as completion:
-        return migration.load_retained_legacy_fd(folder.fileno(), completion.fileno(),
-            expected_host_uuid=host, expected_fingerprint=finger,
-            expected_registry_origin="https://registry.example.invalid",
-            identity_directory=str(root))
-
+    folder = os.open(root, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+    try:
+        completion = os.open(path, os.O_RDONLY | os.O_NOFOLLOW)
+        try:
+            return migration.load_retained_legacy_fd(folder, completion,
+                expected_host_uuid=host, expected_fingerprint=finger,
+                expected_registry_origin="https://registry.example.invalid",
+                identity_directory=str(root))
+        finally:
+            os.close(completion)
+    finally:
+        os.close(folder)
 
 def test_original_key_binding_and_repeated_restart(installed):
     root, key, host, finger, path, receipt, _ = installed
