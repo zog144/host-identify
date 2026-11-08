@@ -122,6 +122,6 @@ def test_no_initialization_or_legacy_fallback(installed):
     from zog.host_identify import storage, initialization
     root, key, host, finger, path, receipt, _ = installed
     with pytest.raises(PermissionError):
-        storage.load_existing_key(root) if str(root).startswith("/state/") else storage.load_existing_key(migration.DIRECTORY)
+        storage.load_existing_key("/state/host-discover/identity")
     with pytest.raises((ValueError, PermissionError, OSError)):
         initialization.load_existing(root, receipt)
