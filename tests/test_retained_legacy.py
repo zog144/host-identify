@@ -53,7 +53,7 @@ def installed(tmp_path, monkeypatch):
 
 def load(row, receipt=None):
     root, key, host, finger, path, original, _ = row
-    with os.fdopen(os.open(root, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW), "rb", closefd=True) as folder, \\
+    with os.fdopen(os.open(root, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW), "rb", closefd=True) as folder, \
          os.fdopen(os.open(path, os.O_RDONLY | os.O_NOFOLLOW), "rb", closefd=True) as completion:
         return migration.load_retained_legacy_fd(folder.fileno(), completion.fileno(),
             expected_host_uuid=host, expected_fingerprint=finger,
