@@ -152,3 +152,64 @@ def test_no_initialization_or_legacy_fallback(installed):
         storage.load_existing_key("/state/host-discover/identity")
     with pytest.raises((ValueError, PermissionError, OSError)):
         initialization.load_existing(root, receipt)
+
+
+@pytest.mark.parametrize("attack", (
+    "valid", "mutable-role", "wrong-mode", "wrong-owner",
+    "symlink", "hardlink", "unlisted-extra", "missing-lock",
+))
+def test_known_legacy_role_and_primary_origin_sidecars(installed,attack,tmp_path):
+    """Retained files are operational state, not new identity or enrollment."""
+    root,key,host,finger,receipt_path,receipt,_=installed
+    originals={
+        "mirror-role.json":b'{"status":{"state":"stopped"}}',
+        "mirror-role.lock":b"",
+        "primary-origin.json":b'{"origin":"https://registry.example.invalid"}',
+    }
+    for name,body in originals.items():
+        file=root/name
+        file.write_bytes(body)
+        file.chmod(0o600)
+    original_inodes={name:(root/name).stat().st_ino for name in originals}
+    if attack=="wrong-mode":
+        (root/"mirror-role.json").chmod(0o644)
+    elif attack=="wrong-owner":
+        os.chown(root/"primary-origin.json",10001,-1)
+    elif attack=="symlink":
+        (root/"primary-origin.json").unlink()
+        (root/"primary-origin.json").symlink_to(tmp_path/"foreign")
+    elif attack=="hardlink":
+        os.link(root/"mirror-role.lock",tmp_path/"linked")
+    elif attack=="unlisted-extra":
+        (root/"arbitrary.json").write_bytes(b"{}")
+    elif attack=="missing-lock":
+        (root/"mirror-role.lock").unlink()
+        # The source inventory must decide what was present. The retained
+        # key loader itself accepts known optional operational state; the
+        # original-witness comparison prevents a disappeared original lock.
+        key_loaded,_=load(installed)
+        assert fingerprint(key_loaded.public_key())==finger
+        return
+    if attack in ("wrong-mode","wrong-owner","symlink","hardlink",
+                  "unlisted-extra"):
+        with pytest.raises((ValueError,PermissionError,OSError)):
+            load(installed)
+        return
+    loaded,binding=load(installed)
+    assert fingerprint(loaded.public_key())==finger
+    assert binding=={"host_id":host,"fingerprint":finger}
+    assert all((root/name).read_bytes()==body for name,body in originals.items())
+    if attack=="mutable-role":
+        # Existing roles.Controller.save uses an atomic replacement.
+        # Restart must not reject the role record simply because the
+        # normal writer gave mirror-role.json a fresh inode.
+        replacement=root/".role-next"
+        replacement.write_bytes(b'{"status":{"state":"ready"}}')
+        replacement.chmod(0o600)
+        os.replace(replacement,root/"mirror-role.json")
+        assert (root/"mirror-role.json").stat().st_ino != (
+            original_inodes["mirror-role.json"])
+        reloaded,_=load(installed)
+        assert fingerprint(reloaded.public_key())==finger
+        assert (root/"mirror-role.lock").stat().st_ino==(
+            original_inodes["mirror-role.lock"])
