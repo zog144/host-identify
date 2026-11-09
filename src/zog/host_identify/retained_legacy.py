@@ -21,6 +21,12 @@ SCHEMA = "zog-retained-legacy-state-identity-completion-v1"
 DIRECTORY = "/state/host-discover/identity"
 FILES = frozenset({"identity.pem", "binding.json", "key.lock"})
 OPTIONAL = frozenset({"registry-ca.pem"})
+# Known legacy operational state, not Host identity or admission evidence.
+# mirror-role.json is atomically replaced after role-state changes.
+RETAINED_SIDECARS = frozenset({
+    "mirror-role.json", "mirror-role.lock", "primary-origin.json",
+})
+ALLOWED = FILES | OPTIONAL | RETAINED_SIDECARS
 MARKERS = frozenset({"initialization.json", "receipt.json", "prepared-key.pem",
                      "publish-key.tmp", "migration.json"})
 
@@ -113,7 +119,8 @@ def load_retained_legacy_fd(directory_fd, completion_fd, *,
                    for x in ("plan_sha256", "journal_sha256"))
             or _inode(directory) != receipt["identity_inode"]):
         raise IdentityStateError("Incomplete or foreign retained identity migration")
-    if set(os.listdir(directory_fd)) not in (FILES, FILES | OPTIONAL):
+    entries = set(os.listdir(directory_fd))
+    if not FILES <= entries or entries - ALLOWED:
         raise IdentityStateError("Unexpected migrated identity directory contents")
     lock, lock_info = _owned_file(directory_fd, "key.lock", os.geteuid())
     try:
@@ -121,9 +128,24 @@ def load_retained_legacy_fd(directory_fd, completion_fd, *,
             raise IdentityStateError("Retained identity lock substituted")
         fcntl.flock(lock, fcntl.LOCK_SH)
         # Recheck under the same never-replaced key.lock inode.
-        if set(os.listdir(directory_fd)) not in (FILES, FILES | OPTIONAL):
+        entries = set(os.listdir(directory_fd))
+        if not FILES <= entries or entries - ALLOWED:
             raise IdentityStateError("Conflicting identity transaction")
-        if "registry-ca.pem" in os.listdir(directory_fd):
+        # Validate only security metadata. Legacy role/origin records are
+        # retained in place and are not reinterpreted by the key loader.
+        # A role writer may atomically replace mirror-role.json AFTER restart;
+        # its inode must therefore not become permanent completion metadata.
+        sidecar_inodes = {}
+        for sidecar in sorted(entries & RETAINED_SIDECARS):
+            sidecar_fd, sidecar_info = _owned_file(
+                directory_fd, sidecar, os.geteuid())
+            try:
+                if sidecar_info.st_dev != directory.st_dev:
+                    raise PermissionError("Retained sidecar crosses filesystem")
+                sidecar_inodes[sidecar] = _inode(sidecar_info)
+            finally:
+                os.close(sidecar_fd)
+        if "registry-ca.pem" in entries:
             ca, ca_info = _owned_file(directory_fd, "registry-ca.pem", os.geteuid())
             try:
                 if (_inode(ca_info) != receipt["ca_inode"]
@@ -165,6 +187,18 @@ def load_retained_legacy_fd(directory_fd, completion_fd, *,
                     or info.st_nlink != 1
                     or _inode(info) != receipt[field]):
                 raise IdentityStateError("Retained entry replaced during inspection")
+        for name, originally_seen in sidecar_inodes.items():
+            info = os.stat(name, dir_fd=directory_fd, follow_symlinks=False)
+            if (not stat.S_ISREG(info.st_mode)
+                    or info.st_uid != os.geteuid()
+                    or info.st_gid != os.getegid()
+                    or stat.S_IMODE(info.st_mode) != 0o600
+                    or info.st_nlink != 1
+                    or info.st_dev != directory.st_dev
+                    or _inode(info) != originally_seen):
+                raise IdentityStateError("Retained sidecar replaced during load")
+        if set(os.listdir(directory_fd)) != entries:
+            raise IdentityStateError("Retained identity inventory changed")
         with safe_directory_fd(identity_directory) as selected_fd:
             if _inode(os.fstat(selected_fd)) != receipt["identity_inode"]:
                 raise IdentityStateError("Migrated identity path replaced")
